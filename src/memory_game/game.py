@@ -18,7 +18,7 @@ import numpy as np
 class Game:
     def __init__(
         self,
-        size: int,
+        size: list[int],
         n_matching: int,
         dataset_name: str,
         splits: list[str] = None,
@@ -26,29 +26,24 @@ class Game:
         field: str = None,
         ds_filter: fo.core.expressions.ViewExpression = None,
         image_size: tuple[int] = (480, 480),
+        grayscale: bool = False,
+        card_back_color=128,
     ) -> None:
         self.size = size
-        self.n_elements = size**2
+        self.n_elements = np.prod(size)
         self.n_matching = n_matching
 
         self.__load_dataset(dataset_name, splits, dataset_dir, field, ds_filter)
         self.image_size = image_size
+        self.grayscale = grayscale
+        self.card_back_color = card_back_color
 
-        self.reset_game()
+        self.reset()
 
-    def reset_game(self) -> None:
-        self.flipped = np.full(self.n_elements, False)
-        self.available = np.arange(self.n_elements)
-        self.revealed = []
-        self.revealed_lab = []
-        self.__build_grid()
-
-    def pick(self, idx: int = None) -> tuple[torch.Tensor, int, bool]:
-        if idx in self.revealed or self.flipped[idx]:
-            print("Invalid index")
-            return None
-        avail = np.array(set(self.available) - set(self.revealed))
-        pos = idx if idx is not None else np.random.choice(avail)
+    def pick(self, pos: int) -> tuple[torch.Tensor, int, bool]:
+        if pos in self.revealed or self.flipped[pos]:
+            raise Exception("Invalid index")
+        self.counter += 1
         self.__reveal_card(pos)
         if len(self.revealed) < self.n_matching and len(set(self.revealed_lab)) <= 1:
             return self.grid[pos], self.grid_labels[pos], True
@@ -57,8 +52,15 @@ class Game:
         self.__reset_turn()
         return self.grid[pos], self.grid_labels[pos], False
 
-    def check_win(self) -> bool:
-        return self.n_elements - sum(self.flipped) < self.n_matching
+    def check_win(self) -> tuple[bool, int]:
+        return self.n_elements - sum(self.flipped) < self.n_matching, self.counter
+
+    def reset(self) -> None:
+        self.flipped = np.full(self.n_elements, False)
+        self.revealed = []
+        self.revealed_lab = []
+        self.counter = 0
+        self.__build_grid()
 
     def __reset_turn(self) -> None:
         self.revealed = []
@@ -78,18 +80,6 @@ class Game:
         self.grid = self.__get_images(elements)
         self.grid_labels = elements
 
-    def __get_images(self, slice: np.ndarray) -> np.ndarray:
-        return np.array([self.__get_image(idx) for idx in slice])
-
-    def __get_image(self, idx: int, grayscale=False) -> torch.Tensor:
-        img_path = self.img_paths[idx]
-        img = Image.open(img_path)
-        t = transforms.Compose(
-            [transforms.ToTensor(), transforms.Resize(self.image_size)]
-        )
-        img = t(img)
-        return transforms.Grayscale(img) if grayscale else img
-
     def __load_dataset(
         self,
         dataset_name: str,
@@ -105,5 +95,29 @@ class Game:
     def __filter_ds(self, dataset, field, filter):
         return dataset.filter_labels(field, filter)
 
-    def set_seed(self, seed: int = 42) -> None:
-        np.random.seed(seed)
+    def __get_images(self, slice: np.ndarray) -> torch.Tensor:
+        return torch.stack([self.__get_image(idx) for idx in slice])
+
+    def __get_image(self, idx: int) -> torch.Tensor:
+        img_path = self.img_paths[idx]
+        img = Image.open(img_path)
+        t = transforms.Compose(
+            [transforms.ToTensor(), transforms.Resize(self.image_size)]
+        )
+        gs = transforms.Grayscale()
+        img = t(img)
+        return gs(img) if self.grayscale else img
+
+    def get_grid(self, flat=True) -> np.ndarray:
+        grey = torch.full_like(self.grid, 128)
+        grey[self.revealed] = self.grid[self.revealed]
+        return grey if flat else grey.reshape(self.size)
+
+    def get_grid_labels(self, flat=True) -> np.ndarray:
+        return self.grid_labels if flat else self.grid_labels(self.size)
+
+    def get_avail(self) -> list[int]:
+        return list(set(np.where(self.flipped == False)[0]) - set(self.revealed))
+
+    def get_revealed(self) -> list[int]:
+        return self.revealed.copy()
