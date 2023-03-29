@@ -18,22 +18,22 @@ import numpy as np
 class Game:
     def __init__(
         self,
-        size: list[int],
-        n_matching: int,
         dataset_name: str,
-        splits: list[str] = None,
+        split: list[str] = None,
         dataset_dir: str = None,
         field: str = None,
         ds_filter: fo.core.expressions.ViewExpression = None,
         image_size: tuple[int] = (480, 480),
         grayscale: bool = False,
         card_back_color=128,
+        grid_size: list[int] = [3, 3],
+        n_matching: int = 2,
     ) -> None:
-        self.size = size
-        self.n_elements = np.prod(size)
+        self.grid_size = grid_size
+        self.n_elements = np.prod(grid_size)
         self.n_matching = n_matching
 
-        self.__load_dataset(dataset_name, splits, dataset_dir, field, ds_filter)
+        self.__load_dataset(dataset_name, split, dataset_dir, field, ds_filter)
         self.image_size = image_size
         self.grayscale = grayscale
         self.card_back_color = card_back_color
@@ -83,12 +83,12 @@ class Game:
     def __load_dataset(
         self,
         dataset_name: str,
-        splits: list[str] = None,
+        split: list[str] = None,
         dataset_dir: str = None,
         field: str = None,
         ds_filter: fo.core.expressions.ViewExpression = None,
     ) -> None:
-        ds = foz.load_zoo_dataset(dataset_name, splits, dataset_dir)
+        ds = foz.load_zoo_dataset(dataset_name, split=split, dataset_dir=dataset_dir)
         self.dataset = self.__filter_ds(ds, field, ds_filter) if field else ds
         self.img_paths = self.dataset.values("filepath")
 
@@ -100,7 +100,7 @@ class Game:
 
     def __get_image(self, idx: int) -> torch.Tensor:
         img_path = self.img_paths[idx]
-        img = Image.open(img_path)
+        img = Image.open(img_path).convert('RGB')
         t = transforms.Compose(
             [transforms.ToTensor(), transforms.Resize(self.image_size)]
         )
@@ -111,13 +111,18 @@ class Game:
     def get_grid(self, flat=True) -> np.ndarray:
         grey = torch.full_like(self.grid, 128)
         grey[self.revealed] = self.grid[self.revealed]
-        return grey if flat else grey.reshape(self.size)
+        return grey if flat else grey.reshape(self.grid_size)
 
     def get_grid_labels(self, flat=True) -> np.ndarray:
-        return self.grid_labels if flat else self.grid_labels(self.size)
+        return self.grid_labels if flat else self.grid_labels(self.grid_size)
 
     def get_avail(self) -> list[int]:
         return list(set(np.where(self.flipped == False)[0]) - set(self.revealed))
 
     def get_revealed(self) -> list[int]:
         return self.revealed.copy()
+
+    def set_size(self, grid_size: int) -> None:
+        self.grid_size = grid_size
+        self.n_elements = np.prod(grid_size)
+        self.reset()
