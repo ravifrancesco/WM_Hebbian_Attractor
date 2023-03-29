@@ -50,7 +50,8 @@ class TileRNN(nn.Module):
         )
 
     def forward(self, x: torch.Tensor, h: torch.Tensor) -> torch.Tensor:
-        return self.model(x, h)
+        with torch.no_grad():
+            return self.model(x, h)
 
     def __repr__(self) -> str:
         return (self.model.__repr__(),)

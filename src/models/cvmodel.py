@@ -19,7 +19,8 @@ class CVModel(nn.Module):
         self.model.eval()
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return self.model(x)
+        with torch.no_grad():
+            return self.model(x)
 
     def __repr__(self) -> str:
         return self.model.__repr__()
