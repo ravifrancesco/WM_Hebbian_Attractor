@@ -100,9 +100,9 @@ class Game:
 
     def __get_image(self, idx: int) -> torch.Tensor:
         img_path = self.img_paths[idx]
-        img = Image.open(img_path).convert('RGB')
+        img = Image.open(img_path).convert("RGB")
         t = transforms.Compose(
-            [transforms.ToTensor(), transforms.Resize(self.image_size)]
+            [transforms.ToTensor(), transforms.Resize(self.image_size, antialias=True)]
         )
         gs = transforms.Grayscale()
         img = t(img)
