@@ -53,7 +53,7 @@ class TileRNN(nn.Module):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         with torch.no_grad():
             out, self.state = self.model(x, self.state)
-            return out, self.state
+            return out
 
     def reset_state(self) -> None:
         self.state = None

@@ -76,7 +76,6 @@ class TileMemory(BaseStrategy):
         memory: TileRNN,
         distance_metric: str,
         device: str = "cpu",
-        use_hidden = False
     ) -> None:
         super().__init__(game)
         self.device = torch.device(device)
@@ -85,7 +84,6 @@ class TileMemory(BaseStrategy):
         self.distance_metric = d_metric_pool(distance_metric)
         self.cvmodel.to(self.device)
         self.memory.to(self.device)
-        self.use_hidden = use_hidden
         self.reset()
 
     def reset(self) -> None:
@@ -96,8 +94,7 @@ class TileMemory(BaseStrategy):
         self.curr = None
 
     def pick(self) -> bool:
-        grid_o, grid_h = self.__update()
-        grid_repr = grid_h if self.use_hidden else grid_o
+        grid_repr = self.__update()
         avail = self.game.get_avail()
         if self.curr is None:
             pos = random.choice(avail)
