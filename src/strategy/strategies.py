@@ -36,10 +36,11 @@ class BaseStrategy:
         return cont
 
 
-class RandomPerfectMemory(BaseStrategy):
-    def __init__(self, game: Game) -> None:
+class PerfectMemory(BaseStrategy):
+    def __init__(self, game: Game, random_pick=False) -> None:
         super().__init__(game)
         self.reset()
+        self.random_pick = random_pick
 
     def reset(self) -> None:
         self.memory = np.full_like(self.game.get_grid_labels(), -1)
@@ -56,7 +57,7 @@ class RandomPerfectMemory(BaseStrategy):
             pos = list(set(indices).intersection(set(avail)))[0]
         # Pick randomly (exclude elements which are in memory if possible)
         else:
-            indices = np.where(self.memory < 0)[0]
+            indices = avail if self.random_pick else np.where(self.memory < 0)[0]
             choice = list(set(indices).intersection(set(avail)))
             pos = random.choice(choice if choice else avail)
         _, lab, cont = self.game.pick(pos)
