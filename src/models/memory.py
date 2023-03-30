@@ -48,10 +48,15 @@ class TileRNN(nn.Module):
         self.model = rnn_pool(
             architecture, input_size, hidden_size, num_layers, nonlinearity, bias
         )
+        self.state = None
 
-    def forward(self, x: torch.Tensor, h: torch.Tensor) -> torch.Tensor:
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         with torch.no_grad():
-            return self.model(x, h)
+            out, self.state = self.model(x, self.state)
+            return out, self.state
+
+    def reset_state(self) -> None:
+        self.state = None
 
     def __repr__(self) -> str:
-        return (self.model.__repr__(),)
+        return self.model.__repr__()
