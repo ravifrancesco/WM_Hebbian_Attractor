@@ -2,6 +2,8 @@ import torch
 import torch.nn as nn
 import torchmetrics.functional as F
 
+from typing import Callable
+
 
 def rnn_pool(
     architecture: str,
@@ -57,6 +59,53 @@ class TileRNN(nn.Module):
 
     def reset_state(self) -> None:
         self.state = None
+
+    def __repr__(self) -> str:
+        return self.model.__repr__()
+
+
+class HashRNN(nn.Module):
+    def __init__(
+        self,
+        architecture: str,
+        memsize: int,
+        input_size: int,
+        hidden_size: int,
+        num_layers: int = 1,
+        nonlinearity: str = "tanh",
+        bias: bool = True,
+    ) -> None:
+        super().__init__()
+        self.model = rnn_pool(
+            architecture, input_size, hidden_size, num_layers, nonlinearity, bias
+        )
+        self.memsize = memsize
+        self.out = []
+        self.state = []
+        self.locations = []
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        with torch.no_grad():
+            out, _ = self.model(x)
+            return out
+
+    def memorize(self, x: torch.Tensor, pos: int, idx: int) -> None:
+        if idx >= self.memsize:
+            raise Exception(f"Index <{idx}> exceeds memory size <{self.memsize}>")
+        with torch.no_grad():
+            if len(self.out) > idx:
+                self.out[idx], self.state[idx] = self.model(x, self.state[idx])
+                self.locations[idx] = pos
+            else:
+                o, hc = self.model(x)
+                self.out.append(o)
+                self.state.append(hc)
+                self.locations.append(pos)
+
+    def reset_state(self) -> None:
+        self.out = []
+        self.state = []
+        self.locations = []
 
     def __repr__(self) -> str:
         return self.model.__repr__()
