@@ -2,6 +2,8 @@ import torch
 import torch.nn as nn
 import torchmetrics.functional as F
 
+import numpy as np
+
 from typing import Callable
 
 
@@ -82,7 +84,7 @@ class HashRNN(nn.Module):
         self.memsize = memsize
         self.out = []
         self.state = []
-        self.locations = []
+        self.positions = []
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         with torch.no_grad():
@@ -100,12 +102,16 @@ class HashRNN(nn.Module):
                 o, hc = self.model(x)
                 self.out.append(o)
                 self.state.append(hc)
-                self.locations.append(pos)
+                self.positions.append(pos)
 
     def reset_state(self) -> None:
         self.out = []
         self.state = []
-        self.locations = []
+        self.positions = []
+
+    def get_out(self, avail: list[int]) -> None:
+        avail_o = np.where(np.isin(self.positions, avail))[0]
+        return torch.stack(self.out[avail_o])
 
     def __repr__(self) -> str:
         return self.model.__repr__()
