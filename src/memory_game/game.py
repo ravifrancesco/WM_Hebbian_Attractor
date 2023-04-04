@@ -120,7 +120,10 @@ class Game:
         return list(set(np.where(self.flipped == False)[0]) - set(self.revealed))
 
     def get_revealed(self) -> list[int]:
-        return self.revealed.copy()
+        return self.revealed
+
+    def get_flipped(self) -> list[int]:
+        return np.where(self.flipped)[0]
 
     def set_size(self, grid_size: int) -> None:
         self.grid_size = grid_size

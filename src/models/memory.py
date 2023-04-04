@@ -1,3 +1,5 @@
+import random
+
 import torch
 import torch.nn as nn
 import torchmetrics.functional as F
@@ -86,32 +88,46 @@ class HashRNN(nn.Module):
         self.state = []
         self.positions = []
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, pos:int = None) -> torch.Tensor:
         with torch.no_grad():
-            out, _ = self.model(x)
+            if pos in self.positions:
+                idx = self.positions.index(pos)
+                out, _ = self.model(x, self.state[idx])
+            else:
+                out, _ = self.model(x)
             return out
 
-    def memorize(self, x: torch.Tensor, pos: int, idx: int) -> None:
-        if idx >= self.memsize:
-            raise Exception(f"Index <{idx}> exceeds memory size <{self.memsize}>")
+    def memorize(self, x: torch.Tensor, pos: int) -> None:
         with torch.no_grad():
-            if len(self.out) > idx:
+            if pos in self.positions:
+                idx = self.positions.index(pos)
                 self.out[idx], self.state[idx] = self.model(x, self.state[idx])
-                self.locations[idx] = pos
+            elif len(self.out) == self.memsize: # for now random
+                idx = random.randint(0, self.memsize - 1)
+                self.out[idx], self.state[idx] = self.model(x, self.state[idx])
+                self.positions[idx] = pos
             else:
                 o, hc = self.model(x)
                 self.out.append(o)
                 self.state.append(hc)
                 self.positions.append(pos)
 
+    def forget(self, flipped: list[int]) -> None:
+        indices = np.where(np.isin(self.positions, flipped))[0]
+        self.out = [x for j, x in enumerate(self.out) if j not in indices]
+        self.state = [x for j, x in enumerate(self.state) if j not in indices]
+        self.positions = [x for j, x in enumerate(self.positions) if j not in indices]
+
     def reset_state(self) -> None:
         self.out = []
         self.state = []
         self.positions = []
 
-    def get_out(self, avail: list[int]) -> None:
-        avail_o = np.where(np.isin(self.positions, avail))[0]
-        return torch.stack(self.out[avail_o])
+    def get_mem(self) -> torch.Tensor:
+        if self.out:
+            return torch.stack(self.out), self.positions
+        else:
+            return None, None
 
     def __repr__(self) -> str:
         return self.model.__repr__()

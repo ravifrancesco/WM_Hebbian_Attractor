@@ -5,16 +5,18 @@ import numpy as np
 from typing import Callable
 
 import torch
-import torchmetrics.functional as F
+import torch.nn.functional as F
 
 from ..memory_game.game import Game
 from ..models.cvmodel import CVModel
-from ..models.memory import TileRNN
+from ..models.memory import TileRNN, HashRNN
 
 
-def d_metric_pool(distance_metric: str) -> Callable:
+def d_metric_pool(distance_metric: str, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
     if distance_metric.lower() == "manhattan":
-        return F.pairwise_manhattan_distance
+        return F.pairwise_distance(x, y, p=1.)
+    elif distance_metric.lower() == 'cosine':
+        return 1-F.cosine_similarity(x,y)
     else:
         raise Exception(f"Distance metric <{distance_metric}> not implemented")
 
@@ -81,7 +83,7 @@ class TileMemory(BaseStrategy):
         self.device = torch.device(device)
         self.cvmodel = cvmodel
         self.memory = memory
-        self.distance_metric = d_metric_pool(distance_metric)
+        self.distance_metric = distance_metric
         self.cvmodel.to(self.device)
         self.memory.to(self.device)
         self.reset()
@@ -99,7 +101,7 @@ class TileMemory(BaseStrategy):
         if self.curr is None:
             pos = random.choice(avail)
         else:
-            pos = self.__find_closest(self.curr, grid_repr, avail)
+            pos = self.__find(self.curr, grid_repr, avail)
         _, _, cont = self.game.pick(pos)
         self.curr = grid_repr[pos]
         if not cont:
@@ -112,8 +114,72 @@ class TileMemory(BaseStrategy):
         cv_out = cv_out.view(cv_out.shape[0], 1, -1)
         return self.memory(cv_out)
 
-    def __find_closest(
-        self, x: torch.Tensor, grid_repr: torch.Tensor, avail: list[int]
-    ) -> int:
-        distances = self.distance_metric(x, grid_repr.flatten(end_dim=1))
+    def __find(self, x: torch.Tensor, grid_repr: torch.Tensor, avail: list[int]) -> int:
+        distances = d_metric_pool(self.distance_metric, x, grid_repr.flatten(end_dim=1))
+        # print(distances)
         return avail[torch.argmin(distances.flatten()[avail])]
+
+
+class RandomHashMemory(BaseStrategy):
+    def __init__(
+        self,
+        game: Game,
+        cvmodel: CVModel,
+        memory: HashRNN,
+        distance_metric: str,
+        device: str = "cpu",
+    ) -> None:
+        super().__init__(game)
+        self.device = torch.device(device)
+        self.cvmodel = cvmodel
+        self.memory = memory
+        self.distance_metric = distance_metric
+        self.cvmodel.to(self.device)
+        self.memory.to(self.device)
+        self.reset()
+
+    def reset(self) -> None:
+        self.memory.reset_state()
+        self.curr = None
+        self.avrg_dist = 0
+
+    def reset_turn(self) -> None:
+        self.curr = None
+
+    def pick(self) -> bool:
+        avail = self.game.get_avail()
+        # print('---')
+        # print(avail)
+        mem, positions = self.memory.get_mem()
+        # print(positions)
+        # print(self.game.grid_labels[positions])
+        avail_o = np.where(np.isin(positions, avail))[0]
+        if self.curr is None or mem is None or not len(avail_o):
+            pos = random.choice(avail)
+            # print(f'curr: {self.game.grid_labels[pos]}')
+        else:
+            pos = self.__find(self.curr, mem, positions, avail_o)
+        # print(f'pos: {pos}')
+        img, _, cont = self.game.pick(pos)
+        self.curr, cv_out = self.__get_repr(img.unsqueeze(0), pos)
+        self.memory.memorize(cv_out, pos)
+        self.memory.forget(self.game.get_flipped())
+        if not cont:
+            self.reset_turn()
+        return cont
+
+    def __get_repr(self, x: torch.Tensor, pos: int) -> torch.Tensor:
+        x = x.to(self.device)
+        cv_out = self.cvmodel(x)
+        return self.memory(cv_out, pos), cv_out
+
+    def __find(
+        self,
+        x: torch.Tensor,
+        grid_repr: torch.Tensor,
+        positions: list[int],
+        avail_o: list[int],
+    ) -> int:
+        distances = d_metric_pool(self.distance_metric, x, grid_repr.flatten(end_dim=1))
+        # print(distances)
+        return min((distances[i], positions[i]) for i in avail_o)[1]
