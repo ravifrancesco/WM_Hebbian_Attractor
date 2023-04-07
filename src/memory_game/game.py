@@ -6,6 +6,8 @@ import fiftyone as fo
 import fiftyone.zoo as foz
 import fiftyone.core.dataset as ds
 
+from sklearn import preprocessing
+
 from PIL import Image
 
 from torchvision import transforms
@@ -78,7 +80,7 @@ class Game:
         elements = np.repeat(elements, self.n_matching)[:n_elements]
         np.random.shuffle(elements)
         self.grid = self.__get_images(elements)
-        self.grid_labels = elements
+        self.grid_labels = preprocessing.LabelEncoder().fit_transform(elements)
 
     def __load_dataset(
         self,
