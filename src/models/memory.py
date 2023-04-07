@@ -88,7 +88,7 @@ class HashRNN(nn.Module):
         self.state = []
         self.positions = []
 
-    def forward(self, x: torch.Tensor, pos:int = None) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, pos: int = None) -> torch.Tensor:
         with torch.no_grad():
             if pos in self.positions:
                 idx = self.positions.index(pos)
@@ -102,7 +102,7 @@ class HashRNN(nn.Module):
             if pos in self.positions:
                 idx = self.positions.index(pos)
                 self.out[idx], self.state[idx] = self.model(x, self.state[idx])
-            elif len(self.out) == self.memsize: # for now random
+            elif len(self.out) == self.memsize:  # for now random
                 idx = random.randint(0, self.memsize - 1)
                 self.out[idx], self.state[idx] = self.model(x, self.state[idx])
                 self.positions[idx] = pos

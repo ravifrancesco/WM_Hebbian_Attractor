@@ -12,11 +12,13 @@ from ..models.cvmodel import CVModel
 from ..models.memory import TileRNN, HashRNN
 
 
-def d_metric_pool(distance_metric: str, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+def d_metric_pool(
+    distance_metric: str, x: torch.Tensor, y: torch.Tensor
+) -> torch.Tensor:
     if distance_metric.lower() == "manhattan":
-        return F.pairwise_distance(x, y, p=1.)
-    elif distance_metric.lower() == 'cosine':
-        return 1-F.cosine_similarity(x,y)
+        return F.pairwise_distance(x, y, p=1.0)
+    elif distance_metric.lower() == "cosine":
+        return 1 - F.cosine_similarity(x, y)
     else:
         raise Exception(f"Distance metric <{distance_metric}> not implemented")
 
@@ -31,11 +33,11 @@ class BaseStrategy:
     def reset_turn(self) -> None:
         pass
 
-    def pick(self) -> bool:
+    def pick(self) -> int:
         avail = self.game.get_avail()
         pos = random.choice(avail)
         _, _, cont = self.game.pick(pos)
-        return cont
+        return pos
 
 
 class PerfectMemory(BaseStrategy):
@@ -51,7 +53,7 @@ class PerfectMemory(BaseStrategy):
     def reset_turn(self) -> None:
         self.curr = None
 
-    def pick(self) -> bool:
+    def pick(self) -> int:
         avail = self.game.get_avail()
         # Check if the current element match is in memory
         if self.curr in self.memory[avail]:
@@ -67,7 +69,7 @@ class PerfectMemory(BaseStrategy):
         self.memory[pos] = lab
         if not cont:
             self.reset_turn()
-        return cont
+        return pos
 
 
 class TileMemory(BaseStrategy):
@@ -95,7 +97,7 @@ class TileMemory(BaseStrategy):
     def reset_turn(self) -> None:
         self.curr = None
 
-    def pick(self) -> bool:
+    def pick(self) -> int:
         grid_repr = self.__update()
         avail = self.game.get_avail()
         if self.curr is None:
@@ -106,7 +108,7 @@ class TileMemory(BaseStrategy):
         self.curr = grid_repr[pos]
         if not cont:
             self.reset_turn()
-        return cont
+        return pos
 
     def __update(self) -> torch.Tensor:
         grid = self.game.get_grid().to(self.device)
@@ -146,27 +148,21 @@ class RandomHashMemory(BaseStrategy):
     def reset_turn(self) -> None:
         self.curr = None
 
-    def pick(self) -> bool:
+    def pick(self) -> int:
         avail = self.game.get_avail()
-        # print('---')
-        # print(avail)
         mem, positions = self.memory.get_mem()
-        # print(positions)
-        # print(self.game.grid_labels[positions])
         avail_o = np.where(np.isin(positions, avail))[0]
         if self.curr is None or mem is None or not len(avail_o):
             pos = random.choice(avail)
-            # print(f'curr: {self.game.grid_labels[pos]}')
         else:
             pos = self.__find(self.curr, mem, positions, avail_o)
-        # print(f'pos: {pos}')
         img, _, cont = self.game.pick(pos)
         self.curr, cv_out = self.__get_repr(img.unsqueeze(0), pos)
         self.memory.memorize(cv_out, pos)
         self.memory.forget(self.game.get_flipped())
         if not cont:
             self.reset_turn()
-        return cont
+        return pos
 
     def __get_repr(self, x: torch.Tensor, pos: int) -> torch.Tensor:
         x = x.to(self.device)
@@ -181,5 +177,4 @@ class RandomHashMemory(BaseStrategy):
         avail_o: list[int],
     ) -> int:
         distances = d_metric_pool(self.distance_metric, x, grid_repr.flatten(end_dim=1))
-        # print(distances)
         return min((distances[i], positions[i]) for i in avail_o)[1]
