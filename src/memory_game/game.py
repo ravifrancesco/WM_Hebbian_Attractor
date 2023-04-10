@@ -118,8 +118,11 @@ class Game:
     def get_grid_labels(self, flat=True) -> np.ndarray:
         return self.grid_labels if flat else self.grid_labels(self.grid_size)
 
-    def get_avail(self) -> list[int]:
-        return list(set(np.where(self.flipped == False)[0]) - set(self.revealed))
+    def get_avail(self, unavailable=False) -> list[int]:
+        if unavailable:
+            return list(set(np.where(self.flipped == True)[0]) | set(self.revealed))
+        else:
+            return list(set(np.where(self.flipped == False)[0]) - set(self.revealed))
 
     def get_revealed(self) -> list[int]:
         return self.revealed

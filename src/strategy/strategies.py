@@ -9,18 +9,8 @@ import torch.nn.functional as F
 
 from ..memory_game.game import Game
 from ..models.cvmodel import CVModel
-from ..models.memory import TileRNN, HashRNN
-
-
-def d_metric_pool(
-    distance_metric: str, x: torch.Tensor, y: torch.Tensor
-) -> torch.Tensor:
-    if distance_metric.lower() == "manhattan":
-        return F.pairwise_distance(x, y, p=1.0)
-    elif distance_metric.lower() == "cosine":
-        return 1 - F.cosine_similarity(x, y)
-    else:
-        raise Exception(f"Distance metric <{distance_metric}> not implemented")
+from ..models.memory import TileRNN, HashRNN, Attractor
+from ..utils.utils import d_metric_pool
 
 
 class BaseStrategy:
@@ -178,3 +168,48 @@ class RandomHashMemory(BaseStrategy):
     ) -> int:
         distances = d_metric_pool(self.distance_metric, x, grid_repr.flatten(end_dim=1))
         return min((distances[i], positions[i]) for i in avail_o)[1]
+
+class BaseAttractorMemory(BaseStrategy):
+    def __init__(
+        self,
+        game: Game,
+        memory: Attractor,
+        dim: int,
+        device: str = "cpu",
+    ) -> None:
+        super().__init__(game)
+        self.device = torch.device(device)
+        self.memory = memory
+        self.memory.to(self.device)
+
+        self.nue = len(np.unique(game.get_grid_labels()))
+        self.dim = dim
+
+        self.reset()
+
+    def reset(self) -> None:
+        self.curr = None
+        self.memory.reset_state()
+
+    def reset_turn(self) -> None:
+        self.curr = None
+
+    def pick(self) -> int:
+        avail = self.game.get_avail()
+        if self.curr is None:
+            pos = random.choice(avail)
+        else:
+            unavail = self.game.get_avail(unavailable=True)
+            pos_oh = torch.zeros(self.dim)
+            curr_oh = F.one_hot(torch.tensor(self.curr), self.nue)
+            x = torch.unsqueeze(torch.concat([pos_oh, curr_oh]), dim=0)
+            positions = self.memory.infer(x, unavail)[:self.dim]
+            pos = avail[torch.argmax(positions.flatten()[avail])]
+        _, self.curr, cont = self.game.pick(pos)
+        curr_oh = F.one_hot(torch.tensor(self.curr), self.nue)
+        pos_oh = F.one_hot(torch.tensor(pos), self.dim)
+        h = torch.unsqueeze(torch.concat([pos_oh, curr_oh]), dim=0)
+        self.memory.memorize(h)
+        if not cont:
+            self.reset_turn()
+        return pos

@@ -8,6 +8,8 @@ import numpy as np
 
 from typing import Callable
 
+from ..utils.utils import activation_pool
+
 
 def rnn_pool(
     architecture: str,
@@ -131,3 +133,40 @@ class HashRNN(nn.Module):
 
     def __repr__(self) -> str:
         return self.model.__repr__()
+    
+class Attractor(nn.Module):
+    def __init__(
+        self,
+        dim: int,
+        lr: float,
+        rr: float,
+        decay: float,
+        tau: int,
+        f: str = "leaky_relu",
+    ) -> None:
+        super().__init__()
+
+        self.dim = dim
+
+        self.lr = lr
+        self.rr = rr
+        self.tau = tau
+        self.decay = decay
+
+        self.f = activation_pool(f)
+
+        self.reset_state()
+
+    def memorize(self, h: torch.Tensor) -> None:
+        self.M = self.rr * self.M + self.lr * (h.T @ h)
+
+    def infer(self, x: torch.Tensor, inhibit: int = None) -> torch.Tensor:
+        h = x
+        for t in range(self.tau):
+            h = self.f(self.decay * h @ self.M)
+            if inhibit is not None:
+                h[:, inhibit] = 0
+        return h
+
+    def reset_state(self) -> None:
+        self.M = torch.zeros(self.dim, self.dim)
