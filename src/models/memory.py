@@ -215,11 +215,11 @@ class FastAttractor(nn.Module):
 
     def forward(self, x: torch.Tensor, steps: int):
 
-        self.M = self.rr * self.M + self.lr * (self.hs.T @ self.hs)
+        #self.M = self.rr * self.M + self.lr * (self.hs.T @ self.hs)
 
         for i in range(steps):
             self.hs = self.f(F.normalize(x + self.hs @ self.M))
-            #self.M = self.rr * self.M + self.lr * (self.hs.T @ self.hs)
+            self.M = self.rr * self.M + self.lr * (self.hs.T @ self.hs)
             self.history.append(self.hs.detach())
             self.e_history.append(self.hs @ self.M @ self.hs.T)
         

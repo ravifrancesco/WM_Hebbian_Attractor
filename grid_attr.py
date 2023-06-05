@@ -80,7 +80,7 @@ def objective_f(x):
             dim = np.prod(size) + len(np.unique(game.get_grid_labels()))
             # dim = 74
             memory = FastAttractor(dim, x[0], x[1])
-            strategy = FastAttractorMemory(game, memory, np.prod(size), steps=int(x[2]))
+            strategy = FastAttractorMemory(game, memory, np.prod(size), steps=100)
             tot = play_strategy(strategy, game)
             tot = math.log10(tot/np.prod(size))
             nlsc_m, nlsc_mm = game.get_number_since_last_click()
@@ -92,10 +92,11 @@ def objective_f(x):
     mse_nslc_mm = nmse(means['nlsc_mm'].to_numpy(), nslc_mm_obj)
     mse_nslp_m = nmse(means['nlsp_m'].to_numpy(), nslp_m_obj)
     mse_nslp_mm = nmse(means['nlsp_mm'].to_numpy(), nslp_mm_obj)
-    return mse_nslp_m + mse_nslp_mm
+    return mse_nslc_m + mse_nslc_mm
 
 if __name__ == '__main__':
 
     # with cma.fitness_transformations.EvalParallel2(objective_f, 5) as parallel_obj:
-    x, es = cma.fmin2(objective_f, [0.5, 0.5, 20], 0.1, {'bounds': [[0,0,0], [1,1,100]], 'verb_disp' : 1, 'integer_variables': [2]})#, parallel_objective=parallel_obj)
+    x, es = cma.fmin2(objective_f, [0.5, 0.5], 0.05, {'bounds': [[0,0], [1,1]], 'verb_disp' : 1})#, parallel_objective=parallel_obj)
     print(dict(es.result._asdict()))
+    print('This was done with rand init, learning in loop, fixed steps at 100, -1 on unavailable, fit on second graph')
