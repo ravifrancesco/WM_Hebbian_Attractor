@@ -24,3 +24,6 @@ class CVModel(nn.Module):
 
     def __repr__(self) -> str:
         return self.model.__repr__()
+
+    def get_out_features(self):
+        return self.out_features

@@ -1,5 +1,3 @@
-import random
-
 import math
 
 import fiftyone as fo
@@ -16,6 +14,7 @@ import torch
 
 import numpy as np
 
+# TODO fix metrics, maybe use observer classs or object
 
 class Game:
     def __init__(
@@ -30,7 +29,11 @@ class Game:
         card_back_color=128,
         grid_size: list[int] = [3, 3],
         n_matching: int = 2,
+        seed: int = None,
     ) -> None:
+        if seed is not None:
+            np.random.seed(seed)
+
         self.grid_size = grid_size
         self.n_elements = np.prod(grid_size)
         self.n_matching = n_matching
@@ -46,11 +49,23 @@ class Game:
         if pos in self.revealed or self.flipped[pos]:
             raise Exception("Invalid index")
         self.counter += 1
+        self.nslc = np.where(self.nslc >= 0, self.nslc + 1, self.nslc)
         self.__reveal_card(pos)
+        match_pos = self.__get_pair_index(self.grid_labels[pos], pos)
         if len(self.revealed) < self.n_matching and len(set(self.revealed_lab)) <= 1:
             return self.grid[pos], self.grid_labels[pos], True
         elif len(self.revealed) == self.n_matching and len(set(self.revealed_lab)) == 1:
+            if self.nslc[pos] > 0:
+                self.nslc_match.append(self.nslc[pos])
+            if match_pos != -1 and self.nslc[match_pos] > 0:
+                self.nslp_match.append(self.nslc[match_pos])
             self.flipped[self.revealed] = True
+        else:
+            if self.nslc[pos] > 0:
+                self.nslc_mismatch.append(self.nslc[pos])
+            if match_pos != -1 and self.nslc[match_pos] > 0:
+                self.nslp_mismatch.append(self.nslc[match_pos])
+        self.nslc[pos] = 0
         self.__reset_turn()
         return self.grid[pos], self.grid_labels[pos], False
 
@@ -62,6 +77,13 @@ class Game:
         self.revealed = []
         self.revealed_lab = []
         self.counter = 0
+        # Number since last click
+        self.nslc = np.full(self.n_elements, -1)
+        self.nslc_match = []
+        self.nslc_mismatch = []
+        # Number since last pair
+        self.nslp_match = []
+        self.nslp_mismatch = []
         self.__build_grid()
 
     def __reset_turn(self) -> None:
@@ -109,6 +131,11 @@ class Game:
         gs = transforms.Grayscale()
         img = t(img)
         return gs(img) if self.grayscale else img
+    
+    def __get_pair_index(self, label, index):
+        matching_indices = np.where(self.grid_labels == label)[0]
+        matching_indices = matching_indices[matching_indices != index]
+        return matching_indices[0] if matching_indices else -1
 
     def get_grid(self, flat=True) -> np.ndarray:
         grey = torch.full_like(self.grid, 128)
@@ -129,6 +156,12 @@ class Game:
 
     def get_flipped(self) -> list[int]:
         return np.where(self.flipped)[0]
+    
+    def get_number_since_last_click(self) -> tuple[float, float]: # TODO clean
+        return 0.0 if not self.nslc_match else np.mean(self.nslc_match), 0.0 if not self.nslc_mismatch else np.mean(self.nslc_mismatch)
+    
+    def get_number_since_last_pair(self) -> tuple[float, float]: # TODO clean
+        return 0.0 if not self.nslp_match else np.mean(self.nslp_match), 0.0 if not self.nslp_mismatch else np.mean(self.nslp_mismatch)
 
     def set_size(self, grid_size: int) -> None:
         self.grid_size = grid_size

@@ -2,7 +2,7 @@ import random
 
 import torch
 import torch.nn as nn
-import torchmetrics.functional as F
+import torch.nn.functional as F
 
 import numpy as np
 
@@ -133,7 +133,8 @@ class HashRNN(nn.Module):
 
     def __repr__(self) -> str:
         return self.model.__repr__()
-    
+
+
 class Attractor(nn.Module):
     def __init__(
         self,
@@ -143,6 +144,7 @@ class Attractor(nn.Module):
         decay: float,
         tau: int,
         f: str = "leaky_relu",
+        device="cpu",
     ) -> None:
         super().__init__()
 
@@ -155,18 +157,121 @@ class Attractor(nn.Module):
 
         self.f = activation_pool(f)
 
-        self.reset_state()
+        self.M = torch.rand(dim, dim).to(
+            device
+        )  # TODO clean make use of pytorch nn module
+        self.hs = torch.zeros(1, dim).to(device)
+
+        self.history = []
 
     def memorize(self, h: torch.Tensor) -> None:
-        self.M = self.rr * self.M + self.lr * (h.T @ h)
+        with torch.no_grad():
+            self.history.append(h)
+            self.M = self.rr * self.M + self.lr * (h.T @ h)
 
-    def infer(self, x: torch.Tensor, inhibit: int = None) -> torch.Tensor:
-        h = x
-        for t in range(self.tau):
-            h = self.f(self.decay * h @ self.M)
-            if inhibit is not None:
-                h[:, inhibit] = 0
-        return h
+    def infer(
+        self, x: torch.Tensor, inhibit: int = None
+    ) -> torch.Tensor:  # TODO mask what can change
+        with torch.no_grad():
+            h = x
+            for t in range(self.tau):
+                self.hs = F.normalize(self.f(self.decay * self.hs + h @ self.M))
+                h = self.hs
+                if inhibit is not None:
+                    h[:, inhibit] = 0
+                self.history.append(self.hs.detach())
+            return self.hs.detach()
 
+    def get_activation_history(self) -> torch.Tensor:
+        return torch.vstack(self.history)
+    
     def reset_state(self) -> None:
-        self.M = torch.zeros(self.dim, self.dim)
+        self.M[True] = 0    
+
+class FastAttractor(nn.Module):
+    def __init__(
+        self,
+        dim: int,
+        lr: float,
+        rr: float,
+        f: str = "leaky_relu",
+        device="cpu",
+    ) -> None:
+        super().__init__()
+
+        self.dim = dim
+
+        self.lr = lr
+        self.rr = rr
+        self.f = activation_pool(f)
+
+        self.M = torch.rand(dim, dim).to(
+            device
+        )  # TODO clean make use of pytorch nn module
+        self.hs = torch.zeros(1, dim).to(device)
+
+        self.history = []
+        self.e_history = []
+
+    def forward(self, x: torch.Tensor, steps: int):
+
+        self.M = self.rr * self.M + self.lr * (self.hs.T @ self.hs)
+
+        for i in range(steps):
+            self.hs = self.f(F.normalize(x + self.hs @ self.M))
+            #self.M = self.rr * self.M + self.lr * (self.hs.T @ self.hs)
+            self.history.append(self.hs.detach())
+            self.e_history.append(self.hs @ self.M @ self.hs.T)
+        
+        return self.hs.detach()
+
+
+    def get_activation_history(self) -> torch.Tensor:
+        return torch.vstack(self.history)
+    
+    def get_energy_history(self) -> torch.Tensor:
+        return torch.tensor(self.e_history)
+    
+    def reset_state(self) -> None:
+        self.M[True] = 0    
+
+class StepAttractor(nn.Module):
+    def __init__(
+        self,
+        dim: int,
+        lr: float,
+        rr: float,
+        decay: float,
+        f: str = "leaky_relu",
+        device="cpu",
+    ) -> None:
+        super().__init__()
+
+        self.dim = dim
+
+        self.lr = lr
+        self.rr = rr
+        self.decay = decay
+
+        self.f = activation_pool(f)
+
+        self.M = torch.rand(dim, dim).to(
+            device
+        )  # TODO clean make use of pytorch nn module
+        self.hs = torch.zeros(1, dim).to(device)
+
+        self.history = []
+
+    def show(self, x: torch.Tensor, steps: int) -> torch.Tensor:
+        with torch.no_grad():
+            for t in range(steps):
+                self.hs = F.normalize(self.f(self.decay * self.hs + x @ self.M))
+                self.M = self.rr * self.M + self.lr * (self.hs.T @ self.hs)
+                self.history.append(self.hs.detach())
+            return self.hs.detach()
+
+    def get_activation_history(self) -> torch.Tensor:
+        return torch.vstack(self.history)
+    
+    def reset_state(self) -> None:
+        self.M[True] = 0    

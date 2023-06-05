@@ -18,5 +18,7 @@ def d_metric_pool(
 def activation_pool(activation: str) -> Callable:
     if activation.lower() == "leaky_relu":
         return torch.nn.functional.leaky_relu
+    elif activation.lower() == "tanh":
+        return torch.nn.functional.tanh
     else:
         raise Exception(f"Activation <{activation}> not implemented")
