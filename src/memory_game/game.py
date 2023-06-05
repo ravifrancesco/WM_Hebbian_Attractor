@@ -38,7 +38,7 @@ class Game:
         self.n_elements = np.prod(grid_size)
         self.n_matching = n_matching
 
-        self.__load_dataset(dataset_name, split, dataset_dir, field, ds_filter)
+        #self.__load_dataset(dataset_name, split, dataset_dir, field, ds_filter)
         self.image_size = image_size
         self.grayscale = grayscale
         self.card_back_color = card_back_color
@@ -123,14 +123,15 @@ class Game:
         return torch.stack([self.__get_image(idx) for idx in slice])
 
     def __get_image(self, idx: int) -> torch.Tensor:
-        img_path = self.img_paths[idx]
-        img = Image.open(img_path).convert("RGB")
-        t = transforms.Compose(
-            [transforms.ToTensor(), transforms.Resize(self.image_size, antialias=True)]
-        )
-        gs = transforms.Grayscale()
-        img = t(img)
-        return gs(img) if self.grayscale else img
+        # img_path = self.img_paths[idx] TODO change
+        # img = Image.open(img_path).convert("RGB")
+        # t = transforms.Compose(
+        #     [transforms.ToTensor(), transforms.Resize(self.image_size, antialias=True)]
+        # )
+        # gs = transforms.Grayscale()
+        # img = t(img)
+        # return gs(img) if self.grayscale else img
+        return idx
     
     def __get_pair_index(self, label, index):
         matching_indices = np.where(self.grid_labels == label)[0]
