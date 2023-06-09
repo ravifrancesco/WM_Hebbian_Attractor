@@ -1,6 +1,6 @@
-from src.memory_game.game import Game
-from src.wm.wm import WorkingMemory
-from src.wm.agent import Agent
+from src_old.memory_game.game import Game
+from src_old.wm.wm import WorkingMemory
+from src_old.wm.agent import Agent
 
 from fiftyone import ViewField as F
 

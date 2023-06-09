@@ -1,7 +1,6 @@
-from src.memory_game.game import Game
-from src.strategy.strategies import BaseStrategy, PerfectMemory, TileMemory, RandomHashMemory, BaseAttractorMemory, CNNAttractorMemory, RandomAttractorMemory, BernoulliMemory, BinaryAttractorMemory, FastAttractorMemory
-from src.models.cvmodel import CVModel
-from src.models.memory import TileRNN, HashRNN, Attractor, FastAttractor
+from src.game import Game
+from src.strategies import FastAttractorMemory
+from src.memory import FastAttractor
 
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.metrics import mean_squared_error
@@ -15,8 +14,6 @@ import torch
 import pandas as pd
 
 import numpy as np
-
-import collections, gc, resource
 
 from tqdm import tqdm
 
@@ -37,6 +34,10 @@ seed = 42
 
 n_trials = 20
 size_range = [[3,3], [4,4], [5,5], [6,6], [7,7]]
+
+steps = 10
+
+n_matching = 2
 
 nc_obj = [0.28, 0.38, 0.44, 0.5, 0.58]
 nslc_m_obj = [5.48, 6.66, 7.16, 9.09, 12.15]
@@ -80,7 +81,7 @@ def objective_f(x):
             dim = np.prod(size) + len(np.unique(game.get_grid_labels()))
             # dim = 74
             memory = FastAttractor(dim, x[0], x[1])
-            strategy = FastAttractorMemory(game, memory, np.prod(size), steps=100)
+            strategy = FastAttractorMemory(game, memory, np.prod(size), steps=steps)
             tot = play_strategy(strategy, game)
             tot = math.log10(tot/np.prod(size))
             nlsc_m, nlsc_mm = game.get_number_since_last_click()

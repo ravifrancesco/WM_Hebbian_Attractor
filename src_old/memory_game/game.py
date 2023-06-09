@@ -35,10 +35,10 @@ class Game:
             np.random.seed(seed)
 
         self.grid_size = grid_size
-        self.n_elements = np.prod(grid_size)
+        self.n_tiles = np.prod(grid_size)
         self.n_matching = n_matching
 
-        #self.__load_dataset(dataset_name, split, dataset_dir, field, ds_filter)
+        self.__load_dataset(dataset_name, split, dataset_dir, field, ds_filter)
         self.image_size = image_size
         self.grayscale = grayscale
         self.card_back_color = card_back_color
@@ -70,15 +70,15 @@ class Game:
         return self.grid[pos], self.grid_labels[pos], False
 
     def check_win(self) -> tuple[bool, int]:
-        return self.n_elements - sum(self.flipped) < self.n_matching, self.counter
+        return self.n_tiles - sum(self.flipped) < self.n_matching, self.counter
 
     def reset(self) -> None:
-        self.flipped = np.full(self.n_elements, False)
+        self.flipped = np.full(self.n_tiles, False)
         self.revealed = []
         self.revealed_lab = []
         self.counter = 0
         # Number since last click
-        self.nslc = np.full(self.n_elements, -1)
+        self.nslc = np.full(self.n_tiles, -1)
         self.nslc_match = []
         self.nslc_mismatch = []
         # Number since last pair
@@ -95,7 +95,7 @@ class Game:
         self.revealed_lab.append(self.grid_labels[pos])
 
     def __build_grid(self) -> None:
-        n_elements = self.n_elements
+        n_elements = self.n_tiles
         elements = np.random.choice(
             len(self.dataset), math.ceil(n_elements / self.n_matching), replace=False
         )
@@ -123,16 +123,15 @@ class Game:
         return torch.stack([self.__get_image(idx) for idx in slice])
 
     def __get_image(self, idx: int) -> torch.Tensor:
-        # img_path = self.img_paths[idx] TODO change
-        # img = Image.open(img_path).convert("RGB")
-        # t = transforms.Compose(
-        #     [transforms.ToTensor(), transforms.Resize(self.image_size, antialias=True)]
-        # )
-        # gs = transforms.Grayscale()
-        # img = t(img)
-        # return gs(img) if self.grayscale else img
-        return idx
-    
+        img_path = self.img_paths[idx]
+        img = Image.open(img_path).convert("RGB")
+        t = transforms.Compose(
+            [transforms.ToTensor(), transforms.Resize(self.image_size, antialias=True)]
+        )
+        gs = transforms.Grayscale()
+        img = t(img)
+        return gs(img) if self.grayscale else img
+
     def __get_pair_index(self, label, index):
         matching_indices = np.where(self.grid_labels == label)[0]
         matching_indices = matching_indices[matching_indices != index]
@@ -166,5 +165,5 @@ class Game:
 
     def set_size(self, grid_size: int) -> None:
         self.grid_size = grid_size
-        self.n_elements = np.prod(grid_size)
+        self.n_tiles = np.prod(grid_size)
         self.reset()

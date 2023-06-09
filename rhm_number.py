@@ -1,7 +1,7 @@
-from src.memory_game.game import Game
-from src.strategy.strategies import BaseStrategy, PerfectMemory, TileMemory, RandomHashMemory
-from src.models.cvmodel import CVModel
-from src.models.memory import TileRNN, HashRNN
+from src_old.memory_game.game import Game
+from src_old.strategy.strategies import BaseStrategy, PerfectMemory, TileMemory, RandomHashMemory
+from src_old.models.cvmodel import CVModel
+from src_old.models.memory import TileRNN, HashRNN
 
 from fiftyone import ViewField as F
 
