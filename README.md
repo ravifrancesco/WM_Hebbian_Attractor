@@ -1,6 +1,6 @@
 # Models-of-Working-Memory
 
-This repo contains the code necessary to reproduce Figure X and Y of the paper [Integration of recognition, episodic, and associative memories during complex human behavior](https://klab.tch.harvard.edu/publications/PDFs/gk8138.pdf). The documentation contains the necessary instructions to understand and use the classes and functions.
+This repository contains the code necessary to reproduce Figure X and Y of the paper [Integration of recognition, episodic, and associative memories during complex human behavior](https://klab.tch.harvard.edu/publications/PDFs/gk8138.pdf). The documentation contains the necessary instructions to understand and use the classes and functions.
 
 ## Reproduce results
 
