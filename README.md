@@ -5,5 +5,5 @@ This repository contains the code necessary to reproduce Figure X and Y of the p
 ## Reproduce results
 
 To reproduce the paper results:
-1. Install the necessary libraries. The repo contains the `torch.yml` to create the correct conda environment by using the command `conda env create --file torch.yml`.
+1. Install the necessary libraries. The repository contains the `torch.yml` to create the correct conda environment (use the command `conda env create --file torch.yml`).
 2. Run the `attr_behavioral_metrics.ipynb` to reproduce the results. The notebook will output the correct plots, as well as a file called `model_metrics.mat` to plot the results using matlab.
