@@ -7,8 +7,9 @@ from typing import Callable
 import torch
 import torch.nn.functional as F
 
+
 from game import Game
-from memory import FastAttractor
+from memory import FastAttractor, PottsAttractor
 
 
 class BaseStrategy:
@@ -103,14 +104,13 @@ class BernoulliMemory(BaseStrategy):
             self.reset_turn()
         return pos
 
+
 class FastAttractorMemory(BaseStrategy):
     def __init__(
         self,
         game: Game,
         memory: FastAttractor,
-        dim: int,
         steps: 20,
-        familiar: bool = False,
         device: str = "cpu",
     ) -> None:
         super().__init__(game)
@@ -119,10 +119,9 @@ class FastAttractorMemory(BaseStrategy):
         self.memory.to(self.device)
 
         self.nue = game.get_n_labels()
-        self.dim = dim
+        self.dim = np.prod(game.get_board_size())
         self.steps = steps
 
-        self.familiar = familiar
         self.seen = np.full(np.prod(game.get_board_size()), -1)
 
         self.reset()
@@ -134,31 +133,105 @@ class FastAttractorMemory(BaseStrategy):
     def reset_turn(self) -> None:
         self.curr = None
 
-    # TODO try to set to -1 the ones that are not accessible
     def pick(self) -> int:
         avail = self.game.get_avail()
         avail_idx = np.where(avail)[0]
-        if self.curr is None or (self.familiar and self.curr not in self.seen[avail]):
+        if self.curr is None:
             pos = random.choice(avail_idx)
         else:
             unavail = np.where(~avail)[0]
             pos_oh = torch.zeros(self.dim)
             curr_oh = torch.zeros(self.nue)
-            curr_oh[self.curr] = 1.
-            pos_oh[unavail] = -1.
+            curr_oh[self.curr] = 1.0 # TODO try with zeros
+            pos_oh[unavail] = -1.0
             x = torch.unsqueeze(torch.concat([pos_oh, curr_oh]), dim=0)
             positions = self.memory(x.to(self.device), self.steps)[: self.dim]
-            pos = avail_idx[torch.argmax(positions.flatten()[avail_idx])]
+            p = positions.flatten()
+            max_v = torch.max(p[avail_idx])
+            pos = np.atleast_1d(avail_idx[torch.where(p[avail_idx] == max_v)[0]])
+            pos = random.choice(pos)
         _, self.curr, cont = self.game.pick(pos)
-        self.seen[pos] = self.curr
-        # curr_oh = F.one_hot(torch.tensor(self.curr), self.nue)
-        # pos_oh = F.one_hot(torch.tensor(pos), self.dim)
-        curr_oh = torch.full([self.nue], -1.)
-        curr_oh[self.curr] = 1.
-        pos_oh = torch.full([self.dim], -1.)
-        pos_oh[pos] = 1.
+        curr_oh = torch.full([self.nue], -1.0)
+        curr_oh[self.curr] = 1.0
+        pos_oh = torch.full([self.dim], -1.0)
+        pos_oh[pos] = 1.0
         h = torch.unsqueeze(torch.concat([pos_oh, curr_oh]), dim=0)
         self.memory(h.to(self.device), self.steps)
+        if not cont:
+            self.reset_turn()
+            # self.memory(torch.zeros(self.dim + self.nue).to(self.device), self.steps)
+        return pos
+
+
+class PottsAttractorMemory(BaseStrategy):
+    def __init__(
+        self,
+        game: Game,
+        memory: PottsAttractor,
+        threshold: float = 11.0,
+        memorization: int = 1000,
+        reaction: int = 2500,
+        ratio: int = 1,
+        device="cpu",
+    ) -> None:
+        super().__init__(game)
+
+        self.device = device
+
+        self.memory = memory.to(self.device)
+        self.threshold = threshold
+
+        self.memorization = memorization
+        self.reaction = reaction
+
+        self.nue = game.get_n_labels()
+        self.dim = np.prod(game.get_board_size())
+
+        div = ratio + 1
+        self.pos_H = (self.memory.H // div) * ratio
+        self.lab_H = self.memory.H - self.pos_H
+
+        self.reset()
+
+    def fill_patterns(self, H: int, n_patterns: int) -> torch.Tensor: # TODO check if best option
+        return torch.stack([
+            torch.eye(self.memory.M).roll(shifts=i, dims=1)[:H]
+            for i in range(n_patterns)
+        ], dim=0).to(self.device)
+
+    def set_patterns(self) -> None:
+        self.pos_patterns = self.fill_patterns(self.pos_H, self.dim)
+        self.lab_patterns = self.fill_patterns(self.lab_H, self.nue)
+        self.infer_pos = torch.ones(self.pos_H, self.memory.M).to(self.device)
+
+    def reset(self) -> None:
+        self.curr = None
+        self.set_patterns()
+        self.memory.reset_state()
+
+    def reset_turn(self) -> None:
+        self.curr = None
+
+    def pick(self) -> int:
+        avail = self.game.get_avail()
+        avail_idx = np.where(avail)[0]
+        if self.curr is None:
+            pos = random.choice(avail_idx)
+        else:
+            unavail = np.where(~avail)[0]
+            m = torch.zeros(self.dim)
+            # pattern = torch.vstack((torch.clamp(self.infer_pos - torch.sum(self.pos_patterns[unavail], dim=0), 0, 1), self.lab_patterns[self.curr]))
+            pattern = torch.vstack((self.infer_pos, self.lab_patterns[self.curr]))
+            for i in range(self.reaction):
+                o = self.memory(pattern, train=False)[:self.pos_H]
+                m += F.cosine_similarity(o.flatten(), self.pos_patterns.flatten(1,2))
+                if torch.any(m > self.threshold):
+                    break
+            pos = avail_idx[torch.argmax(m[avail_idx])]
+        _, self.curr, cont = self.game.pick(pos)
+        pattern = torch.vstack((self.pos_patterns[pos], self.lab_patterns[self.curr]))
+        for i in range(self.memorization):
+            self.memory(pattern)
         if not cont:
             self.reset_turn()
         return pos

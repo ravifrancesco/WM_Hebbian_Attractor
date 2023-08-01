@@ -92,16 +92,18 @@ class Game:
         dataset_dir: str = None,
         field: str = None,
         ds_filter: fo.core.expressions.ViewExpression = None,
-    ) -> None:
-        ds = foz.load_zoo_dataset(dataset_name, split=split, dataset_dir=dataset_dir)
-        self.dataset = self.__filter_ds(ds, field, ds_filter) if field else ds
-        self.img_paths = self.dataset.values("filepath")
+    ) -> None: # FIXME
+        # ds = foz.load_zoo_dataset(dataset_name, split=split, dataset_dir=dataset_dir)
+        # self.dataset = self.__filter_ds(ds, field, ds_filter) if field else ds
+        # self.img_paths = self.dataset.values("filepath")
+        self.dataset = np.arange(1000)
 
     def __filter_ds(self, dataset, field, filter):
         return dataset.filter_labels(field, filter)
 
-    def __get_images(self, slice: np.ndarray) -> torch.Tensor:
-        return torch.stack([self.__get_image(idx) for idx in slice])
+    def __get_images(self, slice: np.ndarray) -> torch.Tensor: # FIXME
+        # return torch.stack([self.__get_image(idx) for idx in slice])
+        return torch.tensor(slice)
 
     def __get_image(self, idx: int) -> torch.Tensor:
         img_path = self.img_paths[idx]
@@ -175,9 +177,10 @@ class Gameplay:
         df = pd.DataFrame(
             {
                 "match": self.__build_match(s),
-                "tile_clicked": tc,
+                "random_match": self.__build_random_match(tc, sl),
+                "tile_clicked": tc+1,
                 "nslc": self.__build_nslc(tc),
-                "nslp": self.__build_nslp(tc, sl),
+                "nsp": self.__build_nsp(tc, sl),
                 "correct_tile": self.__build_correct_tile(tc, sl),
             }
         )
@@ -190,25 +193,33 @@ class Gameplay:
         match_array = (diff_array > 0).astype(int)
         return np.repeat(match_array, 2)
 
+    def __build_random_match(self, tc: np.ndarray, sl: np.ndarray) -> np.ndarray:
+        nsp = []
+        for i, v in enumerate(sl):
+            idxs = np.where(sl[:i] == v)[0]
+            idxs = idxs[tc[idxs] != tc[i]]
+            nsp.append(0 if idxs.size else 1)
+        return np.array(nsp)
+
     def __build_nslc(self, tc: np.ndarray) -> np.ndarray:
         nlsc = []
         for i, v in enumerate(tc):
             idxs = np.where(tc[:i] == v)[0]
-            nlsc.append(i - idxs[-1] if idxs.size else -1)
+            nlsc.append(i - idxs[-1] if idxs.size else 0)
         return np.array(nlsc)
 
-    def __build_nslp(self, tc: np.ndarray, sl: np.ndarray) -> np.ndarray:
-        nlsp = []
+    def __build_nsp(self, tc: np.ndarray, sl: np.ndarray) -> np.ndarray:
+        nsp = []
         for i, v in enumerate(sl):
             idxs = np.where(sl[:i] == v)[0]
             idxs = idxs[tc[idxs] != tc[i]]
-            nlsp.append(i - idxs[-1] if idxs.size else -1)
-        return np.array(nlsp)
+            nsp.append(i - idxs[-1] if idxs.size else 0)
+        return np.array(nsp)
 
     def __build_correct_tile(self, tc: np.ndarray, sl: np.ndarray) -> np.ndarray:
         ct = []
         for i, v in enumerate(sl):
             idxs = np.where(sl[:i] == v)[0]
             idxs = idxs[tc[idxs] != tc[i]]
-            ct.append(tc[idxs[0]] if idxs.size else -1)
+            ct.append(tc[idxs[0]] if idxs.size else 0)
         return np.array(ct)
