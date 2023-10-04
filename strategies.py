@@ -97,7 +97,7 @@ class FastAttractorMemory(BaseStrategy):
         self,
         game: Game,
         memory: FastAttractor,
-        steps: 20,
+        steps: 10,
         device: str = "cpu",
     ) -> None:
         """Initialization.
